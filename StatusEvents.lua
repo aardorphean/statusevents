@@ -7,7 +7,7 @@ require "wrapped_captures"
 
 dofile(GetInfo(60) .. "aardwolf_colors.lua")
 
-local VERSION = "1.002"
+local VERSION = "1.1002"
 
 --   1         At login screen, no player yet
 --   2         Player at MOTD or other login sequence
@@ -62,7 +62,9 @@ local oStatusEvts = {
         ["9"] = false,
         ["11"] = false,
         ["12"] = false,
-        ["99"] = false
+        ["99"] = false,
+        ["991"] = false,
+        ["992"] = false
     },
     aardStatusLabel = {
         ["1"] = "login",
@@ -76,7 +78,9 @@ local oStatusEvts = {
         ["9"] = "sleeping",
         ["11"] = "resting/sitting",
         ["12"] = "running",
-        ["99"] = "pk combat"
+        ["99"] = "pk combat",
+        ["991"] = "pk initiate",
+        ["992"] = "pk defense"
     },
     options = {}
 }
@@ -634,7 +638,9 @@ local function oDefaultOptions()
             ["9"] = {},
             ["11"] = {},
             ["12"] = {},
-            ["99"] = {}
+            ["99"] = {},
+            ["991"] = {},
+            ["992"] = {}
         },
         meta = {
             ["1"] = {
@@ -720,6 +726,20 @@ local function oDefaultOptions()
                 enableMessage = nil,
                 disableMessage = nil,
                 useCustomMessage = false
+            },
+            ["991"] = {
+                enabled = false,
+                messageEnabled = false,
+                enableMessage = nil,
+                disableMessage = nil,
+                useCustomMessage = false
+            },
+            ["992"] = {
+                enabled = false,
+                messageEnabled = false,
+                enableMessage = nil,
+                disableMessage = nil,
+                useCustomMessage = false
             }
         }
     }
@@ -745,9 +765,19 @@ local function oResetEvents()
 end
 
 local function oCheckOptions()
-    if oStatusEvts.options.version ~= oDefaultOptions().version then
-        Note('StatusEvents: Settings options to default values.')
-        oStatusEvts.options = copytable.deep(oDefaultOptions())
+    local defaults = oDefaultOptions()
+
+    if oStatusEvts.options.version ~= defaults.version then
+        if type(oStatusEvts.options.version) == "nil" then
+            Note('StatusEvents: Settings options to default values.')
+            oStatusEvts.options = copytable.deep(defaults)
+        elseif defaults.version == "v1.1002" and oStatusEvts.options.version == "1.002" then
+            oStatusEvts.options.version = "v1.1002"
+            oStatusEvts.meta["991"] = copytable.deep(defaults.meta["991"])
+            oStatusEvts.meta["992"] = copytable.deep(defaults.meta["992"])
+            oStatusEvts.actions["991"] = {}
+            oStatusEvts.actions["992"] = {}
+        end
     end
 end
 
@@ -804,10 +834,28 @@ function oExecute(state, phase)
     end
 end
 
-function oSetPKCombat()
+function oSetPKCombat(defense)
     oSimulate("99", true)
     oExecute("99", true)
     oStatusEvts.aardStatus['99'] = true
+
+    if defense then
+        oSimulate("992", true)
+        oExecute("992", true)
+        oStatusEvts.aardStatus['992'] = true
+    else
+        oSimulate("991", true)
+        oExecute("991", true)
+        oStatusEvts.aardStatus['991'] = true
+    end
+end
+
+function oSetPKCombatDefense()
+    oSetPKCombat(true)
+end
+
+function oSetPKCombatInitiate()
+    oSetPKCombat(false)
 end
 
 function oStatusEventEmit(state)
@@ -829,6 +877,16 @@ function oStatusEventEmit(state)
                     oSimulate("99", false)
                     oExecute("99", false)
                     oStatusEvts.aardStatus["99"] = false
+
+                    if oStatusEvts.aardStatus["991"] then
+                        oSimulate("991", false)
+                        oExecute("991", false)
+                        oStatusEvts.aardStatus["991"] = false
+                    else
+                        oSimulate("992", false)
+                        oExecute("992", false)
+                        oStatusEvts.aardStatus["992"] = false
+                    end
                 end
             end
             oStatusEvts.aardStatus[k] = false
@@ -1120,7 +1178,9 @@ local function oEventsList(args)
         ["9"] = "Player sleeping",
         ["11"] = "Player resting or sitting",
         ["12"] = "Player running",
-        ["99"] = "Player in PK combat"
+        ["99"] = "Player in PK combat",
+        ["991"] = "Player initiates PK",
+        ["992"] = "Player defends against PK"
     }
 
     local headers = rightpad(" Name", 56) .. center("Enabled", 7) .. " Actions"
